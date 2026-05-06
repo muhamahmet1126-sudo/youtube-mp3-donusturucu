@@ -1,40 +1,30 @@
-import streamlit as st
-import audio_downloader
-import video_isleyici
+import yt_dlp
 import os
 
-# Sayfa Yapılandırması
-st.set_page_config(page_title="Muhammet Media Converter", page_icon="🚀")
+def download_audio(youtube_url):
+    # Çerez dosyasının varlığını kontrol et
+    cookie_file = 'cookies.txt'
+    
+    ydl_opts = {
+        'format': 'bestaudio/best',
+        'outtmpl': 'downloads/%(title)s.%(ext)s',
+        # YouTube engelini aşmak için çerezleri kullanıyoruz
+        'cookiefile': cookie_file if os.path.exists(cookie_file) else None,
+        'postprocessors': [{
+            'key': 'FFmpegExtractAudio',
+            'preferredcodec': 'mp3',
+            'preferredquality': '192',
+        }],
+        # Sunucu kimliğini gizlemek için bazı ek ayarlar
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'quiet': True,
+        'no_warnings': True,
+    }
 
-st.title("🚀 Muhammet Media Converter")
-st.subheader("Her yerden erişilebilir, hızlı ve kolay!")
-
-# Menü Seçenekleri
-option = st.sidebar.selectbox(
-    'Hangi işlemi yapmak istersin?',
-    ('YouTube MP3 İndir', 'Video Dosyasını MP3\'e Çevir')
-)
-
-if option == 'YouTube MP3 İndir':
-    url = st.text_input("YouTube Linkini Buraya Yapıştır:")
-    if st.button("İndirmeyi Başlat"):
-        if url:
-            with st.spinner('Müzik indiriliyor...'):
-                sonuc = audio_downloader.mp3_indir(url)
-                st.success(sonuc)
-        else:
-            st.warning("Lütfen geçerli bir link girin!")
-
-elif option == 'Video Dosyasını MP3\'e Çevir':
-    yuklenen_dosya = st.file_uploader("Bir video dosyası seç", type=['mp4', 'mkv', 'avi'])
-    if yuklenen_dosya is not None:
-        if st.button("Sese Dönüştür"):
-            with st.spinner('Dönüştürülüyor...'):
-                # Geçici olarak dosyayı kaydet ve işle
-                with open("temp_video.mp4", "wb") as f:
-                    f.write(yuklenen_dosya.getbuffer())
-                sonuc = video_isleyici.videoyu_sese_cevir("temp_video.mp4")
-                st.success(sonuc)
-                # İndirme butonu ekle
-                with open("temp_video.mp3", "rb") as f:
-                    st.download_button("MP3 Dosyasını İndir", f, file_name="donusturulen.mp3")
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(youtube_url, download=True)
+            return ydl.prepare_filename(info).replace('.webm', '.mp3').replace('.m4a', '.mp3')
+    except Exception as e:
+        # Eğer hala hata alırsak detayını görelim
+        raise Exception(f"İndirme Hatası: {str(e)}")
