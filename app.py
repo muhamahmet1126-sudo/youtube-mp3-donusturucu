@@ -2,10 +2,13 @@ from flask import Flask, render_template, request, send_file
 import yt_dlp
 import os
 import imageio_ffmpeg
+import logging
 
 app = Flask(__name__)
 
-# İndirilen dosyaların geçici olarak tutulacağı klasör
+# Logları takip etmek için (Render panelinde hataları görmek için)
+logging.basicConfig(level=logging.INFO)
+
 DOWNLOAD_FOLDER = 'downloads'
 if not os.path.exists(DOWNLOAD_FOLDER):
     os.makedirs(DOWNLOAD_FOLDER)
@@ -20,9 +23,8 @@ def download():
     if not url:
         return "Lütfen bir URL girin!", 400
 
-    # Format hatasını çözmek için daha esnek hale getirilmiş yt-dlp ayarları
+    # En güncel bot aşma ve format ayarları
     ydl_opts = {
-        # 'bestaudio' yerine sadece 'best' diyerek en uygun olanı bulmasını sağlıyoruz
         'format': 'bestaudio/best',
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
@@ -31,27 +33,31 @@ def download():
         }],
         'outtmpl': f'{DOWNLOAD_FOLDER}/%(title)s.%(ext)s',
         'ffmpeg_location': imageio_ffmpeg.get_ffmpeg_exe(),
-        # Bot engelini aşmak için eklediğin cookies.txt dosyasını kullanır
         'cookiefile': 'cookies.txt',
-        'quiet': True,
-        'no_warnings': True,
-        # Bazı format hatalarını görmezden gelerek indirmeye devam eder
-        'ignoreerrors': True,
+        'quiet': False, # Hataları loglarda görebilmek için açtık
+        'no_warnings': False,
         'nocheckcertificate': True,
+        'add_header': [
+            'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        ]
     }
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            # Video bilgilerini çıkar ve indir
+            # 1. Aşama: Bilgileri al ve indir
             info = ydl.extract_info(url, download=True)
-            if info is None:
-                return "Video bilgileri alınamadı veya format uygun değil.", 400
-                
-            # Dosya adını belirle ve mp3 uzantısını garantiye al
-            file_path = ydl.prepare_filename(info).rsplit('.', 1)[0] + ".mp3"
             
-        return send_file(file_path, as_attachment=True)
+            # 2. Aşama: Dosya yolunu oluştur (Uzantıyı manuel garantiye al)
+            title = info.get('title', 'video')
+            # Klasör içindeki dosyaları tara ve en yeni inen .mp3'ü bul
+            # (Bu yöntem, isimdeki garip karakterlerden kaynaklanan hataları çözer)
+            files = [os.path.join(DOWNLOAD_FOLDER, f) for f in os.listdir(DOWNLOAD_FOLDER)]
+            latest_file = max(files, key=os.path.getctime)
+            
+            return send_file(latest_file, as_attachment=True)
+            
     except Exception as e:
+        logging.error(f"Sistem Hatası: {str(e)}")
         return f"Hata oluştu: {str(e)}", 500
 
 if __name__ == '__main__':
