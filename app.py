@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, send_file
 import yt_dlp
 import os
-import imageio_ffmpeg # FFmpeg sorununu çözmek için ekledik
+import imageio_ffmpeg
 
 app = Flask(__name__)
 
@@ -12,7 +12,7 @@ if not os.path.exists(DOWNLOAD_FOLDER):
 
 @app.route('/')
 def index():
-    # Bu rota ana sayfanın açılmasını sağlar (image_87ba51.png içindeki index.html'i çağırır)
+    # Ana sayfanın açılmasını sağlayan rota
     return render_template('index.html')
 
 @app.route('/download', methods=['POST'])
@@ -30,18 +30,25 @@ def download():
             'preferredquality': '192',
         }],
         'outtmpl': f'{DOWNLOAD_FOLDER}/%(title)s.%(ext)s',
-        # imageio-ffmpeg sayesinde ffmpeg yolunu otomatik bulur
-        'ffmpeg_location': imageio_ffmpeg.get_ffmpeg_exe() 
+        'ffmpeg_location': imageio_ffmpeg.get_ffmpeg_exe(),
+        # YouTube bot engelini aşmak için eklediğimiz çerez dosyası
+        'cookiefile': 'cookies.txt',
+        'quiet': True,
+        'no_warnings': True
     }
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
-            file_path = ydl.prepare_filename(info).replace('.webm', '.mp3').replace('.m4a', '.mp3')
+            # Dosya uzantısını mp3 olarak ayarla
+            file_path = ydl.prepare_filename(info).rsplit('.', 1)[0] + ".mp3"
             
         return send_file(file_path, as_attachment=True)
     except Exception as e:
+        # Eğer hata oluşursa ekranda nedenini görelim
         return f"Hata oluştu: {str(e)}", 500
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    # Render'da port sorunu yaşamamak için default ayarlar
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port)
