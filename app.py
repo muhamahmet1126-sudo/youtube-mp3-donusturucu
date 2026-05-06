@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, send_file
 import yt_dlp
 import os
+import imageio_ffmpeg # FFmpeg sorununu çözmek için ekledik
 
 app = Flask(__name__)
 
@@ -11,42 +12,34 @@ if not os.path.exists(DOWNLOAD_FOLDER):
 
 @app.route('/')
 def index():
+    # Bu rota ana sayfanın açılmasını sağlar (image_87ba51.png içindeki index.html'i çağırır)
     return render_template('index.html')
 
-@app.route('/indir', methods=['POST'])
-def indir():
+@app.route('/download', methods=['POST'])
+def download():
     url = request.form.get('url')
-    tip = request.form.get('tip')
-    
     if not url:
-        return "Lütfen bir link girin!", 400
+        return "Lütfen bir URL girin!", 400
 
     # yt-dlp ayarları
-    if tip == 'mp3':
-        ydl_opts = {
-            'format': 'bestaudio/best',
-            'postprocessors': [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'mp3',
-                'preferredquality': '192',
-            }],
-            'outtmpl': f'{DOWNLOAD_FOLDER}/%(title)s.%(ext)s',
-        }
-    else:
-        ydl_opts = {
-            'format': 'best',
-            'outtmpl': f'{DOWNLOAD_FOLDER}/%(title)s.%(ext)s',
-        }
+    ydl_opts = {
+        'format': 'bestaudio/best',
+        'postprocessors': [{
+            'key': 'FFmpegExtractAudio',
+            'preferredcodec': 'mp3',
+            'preferredquality': '192',
+        }],
+        'outtmpl': f'{DOWNLOAD_FOLDER}/%(title)s.%(ext)s',
+        # imageio-ffmpeg sayesinde ffmpeg yolunu otomatik bulur
+        'ffmpeg_location': imageio_ffmpeg.get_ffmpeg_exe() 
+    }
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
-            filename = ydl.prepare_filename(info)
-            if tip == 'mp3':
-                filename = filename.rsplit('.', 1)[0] + '.mp3'
+            file_path = ydl.prepare_filename(info).replace('.webm', '.mp3').replace('.m4a', '.mp3')
             
-            # Dosyayı kullanıcıya gönder
-            return send_file(filename, as_attachment=True)
+        return send_file(file_path, as_attachment=True)
     except Exception as e:
         return f"Hata oluştu: {str(e)}", 500
 
