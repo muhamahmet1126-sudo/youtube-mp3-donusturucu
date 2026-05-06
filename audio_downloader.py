@@ -2,32 +2,33 @@ import yt_dlp
 import os
 
 def download_audio(youtube_url):
-    # Çerez dosyasının tam yolunu sisteme tanıtıyoruz
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    cookie_path = os.path.join(current_dir, 'cookies.txt')
+    cookie_path = os.path.join(os.getcwd(), 'cookies.txt')
     
     if not os.path.exists('downloads'):
         os.makedirs('downloads')
 
     ydl_opts = {
-        'format': 'bestaudio/best',
+        # Format seçimini en garanti hale getirdik
+        'format': 'ba/b', 
         'outtmpl': 'downloads/%(title)s.%(ext)s',
-        'cookiefile': cookie_path, # Çerezleri buradan okumasını zorunlu kılıyoruz
+        'cookiefile': cookie_path,
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'mp3',
             'preferredquality': '192',
         }],
-        # YouTube engelini aşmak için tarayıcıyı taklit etme
+        # YouTube'u kandırmak için güncel tarayıcı kimliği
         'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
         'nocheckcertificate': True,
+        'ignoreerrors': False,
+        'logtostderr': False,
+        'quiet': True,
+        'no_warnings': True,
     }
 
     try:
-        if not os.path.exists(cookie_path):
-            raise Exception("Hata: cookies.txt dosyası GitHub deponda bulunamadı!")
-            
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            # Önce videonun indirilebilir olup olmadığını kontrol et
             info = ydl.extract_info(youtube_url, download=True)
             return ydl.prepare_filename(info).replace('.webm', '.mp3').replace('.m4a', '.mp3')
     except Exception as e:
